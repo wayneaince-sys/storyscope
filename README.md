@@ -1,73 +1,44 @@
-# React + TypeScript + Vite
+# StoryScope
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A privacy-first manuscript analysis tool that runs entirely in your browser. Upload a `.docx`, encrypt it locally with a passphrase, and get chapter-level metrics: embedding similarity, repetition maps, sentiment escalation curves, abstraction ratios, and paragraph-level rewrite suggestions. Export a typeset PDF revision report or compare two versions of the same manuscript side-by-side.
 
-Currently, two official plugins are available:
+## How it works
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Parsing** — `mammoth` converts `.docx` to structured chapters via H1/H2/H3 + "Chapter N" detection.
+- **Embeddings** — `Xenova/all-MiniLM-L6-v2` runs in the browser via [`@huggingface/transformers`](https://github.com/huggingface/transformers.js) for chapter and paragraph vectors.
+- **Sentiment** — `Xenova/distilbert-base-uncased-finetuned-sst-2-english` for per-paragraph signed sentiment + intensity, aggregated into chapter escalation curves.
+- **Repetition** — 3–5gram counter with substring-subsumption to surface meaningful echoes, not boilerplate.
+- **Abstraction** — concrete/abstract lexicon ratio per paragraph.
+- **Suggestions** — paragraph-level rewrite prompts triggered by echo, abstraction-heavy, or low-tension signals.
+- **Storage** — AES-GCM encrypted blobs in IndexedDB, key derived via PBKDF2 (250k iterations) from your passphrase. The passphrase never leaves the device.
 
-## React Compiler
+## Local development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev   # http://localhost:5173
+npm run build # outputs to dist/
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Deployment
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+The repo is configured for **two** deployment targets out of the box:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **GitHub Pages** — push to `main`; the workflow at `.github/workflows/deploy.yml` builds with `VITE_BASE=/<repo>/` and publishes `dist/` automatically. Enable Pages once in **Settings → Pages → Source: GitHub Actions**.
+- **Any static host** — `npm run build` produces a self-contained `dist/` directory. Drop it on Cloudflare Pages, Netlify, S3, or any static server. Default base is `/`.
+
+The `vite.config.ts` reads `VITE_BASE` from the environment, so the same build works on both targets without code changes.
+
+## First-run note
+
+The first analysis after a fresh deploy downloads ~80 MB of model weights from the Hugging Face CDN. They're cached in the browser after that.
+
+## Privacy
+
+- All processing happens in-browser. No manuscript text, embeddings, or analysis ever leaves your device.
+- Models are fetched from the public Hugging Face CDN; that request contains no manuscript content.
+- IndexedDB blobs are encrypted client-side; losing the passphrase means losing the project.
+
+## Tech
+
+React 18 · Vite · TypeScript · Tailwind v3 · Recharts · jsPDF · `@huggingface/transformers` · Web Crypto + IndexedDB

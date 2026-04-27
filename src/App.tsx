@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Lock, ShieldCheck, Trash2, FilePlus2, Cpu } from 'lucide-react';
+import { Lock, ShieldCheck, Trash2, FilePlus2, Cpu, GitCompare } from 'lucide-react';
 import Logo from './components/Logo';
 import Upload from './components/Upload';
 import PassphrasePrompt from './components/PassphrasePrompt';
 import Dashboard from './components/Dashboard';
+import ComparePicker from './components/ComparePicker';
+import Compare from './components/Compare';
 import {
   createProject,
   deleteProject,
@@ -20,7 +22,12 @@ type View =
   | { kind: 'list' }
   | { kind: 'create' }
   | { kind: 'unlock'; project: ProjectRecord }
-  | { kind: 'open'; project: ProjectRecord; payload: ProjectPayload; passphrase: string };
+  | { kind: 'open'; project: ProjectRecord; payload: ProjectPayload; passphrase: string }
+  | { kind: 'compare-pick' }
+  | { kind: 'compare';
+      left: { project: ProjectRecord; payload: ProjectPayload };
+      right: { project: ProjectRecord; payload: ProjectPayload };
+    };
 
 interface ProgressState {
   stage: string;
@@ -126,8 +133,19 @@ export default function App() {
       <Dashboard
         payload={view.payload}
         analysis={view.payload.analysis!}
+        projectName={view.project.name}
         onExport={handleExport}
         onLock={() => setView({ kind: 'list' })}
+      />
+    );
+  }
+
+  if (view.kind === 'compare') {
+    return (
+      <Compare
+        left={{ name: view.left.project.name, payload: view.left.payload }}
+        right={{ name: view.right.project.name, payload: view.right.payload }}
+        onBack={() => setView({ kind: 'list' })}
       />
     );
   }
@@ -144,6 +162,15 @@ export default function App() {
             onNew={() => { setError(null); setView({ kind: 'create' }); }}
             onOpen={(p) => setView({ kind: 'unlock', project: p })}
             onDelete={handleDelete}
+            onCompare={() => { setError(null); setView({ kind: 'compare-pick' }); }}
+          />
+        )}
+
+        {view.kind === 'compare-pick' && (
+          <ComparePicker
+            projects={projects}
+            onCancel={() => setView({ kind: 'list' })}
+            onReady={(left, right) => setView({ kind: 'compare', left, right })}
           />
         )}
 
@@ -203,14 +230,16 @@ function Header() {
 }
 
 function ProjectList({
-  projects, loading, onNew, onOpen, onDelete,
+  projects, loading, onNew, onOpen, onDelete, onCompare,
 }: {
   projects: ProjectRecord[];
   loading: boolean;
   onNew: () => void;
   onOpen: (p: ProjectRecord) => void;
   onDelete: (id: string) => void;
+  onCompare: () => void;
 }) {
+  const canCompare = projects.length >= 2;
   return (
     <div>
       <div className="flex items-end justify-between mb-8 gap-6 flex-wrap">
@@ -221,12 +250,22 @@ function ProjectList({
             entirely in your browser — embeddings, sentiment, repetition, and abstraction all run locally.
           </p>
         </div>
-        <button
-          onClick={onNew}
-          className="rounded-xl bg-ink-900 text-ink-50 px-5 py-3 text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
-        >
-          <FilePlus2 size={16} /> New project
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onCompare}
+            disabled={!canCompare}
+            title={canCompare ? 'Compare two manuscripts' : 'Need at least two projects'}
+            className="rounded-xl border border-ink-200 text-ink-700 px-4 py-3 text-sm font-medium hover:bg-ink-100 disabled:opacity-40 transition-colors flex items-center gap-2"
+          >
+            <GitCompare size={16} /> Compare
+          </button>
+          <button
+            onClick={onNew}
+            className="rounded-xl bg-ink-900 text-ink-50 px-5 py-3 text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
+          >
+            <FilePlus2 size={16} /> New project
+          </button>
+        </div>
       </div>
 
       {loading ? (

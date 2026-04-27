@@ -4,14 +4,16 @@ import {
   BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Cell,
 } from 'recharts';
 import {
-  BookOpenText, Activity, Repeat, Layers, Lightbulb, Network, Download, Lock, ChevronRight,
+  BookOpenText, Activity, Repeat, Layers, Lightbulb, Network, Download, Lock, ChevronRight, FileText,
 } from 'lucide-react';
 import type { ProjectPayload, AnalysisResults, Manuscript, Chapter } from '../lib/types';
 import Heatmap from './Heatmap';
+import { exportSuggestionsPDF } from '../lib/pdf';
 
 interface Props {
   payload: ProjectPayload;
   analysis: AnalysisResults;
+  projectName: string;
   onExport?: () => void;
   onLock?: () => void;
 }
@@ -31,7 +33,7 @@ function chapterLabel(ch: Chapter): string {
   return ch.title || `Chapter ${ch.index + 1}`;
 }
 
-export default function Dashboard({ payload, analysis, onExport, onLock }: Props) {
+export default function Dashboard({ payload, analysis, projectName, onExport, onLock }: Props) {
   const { manuscript } = payload;
   const [tab, setTab] = useState<Tab>('overview');
 
@@ -93,7 +95,7 @@ export default function Dashboard({ payload, analysis, onExport, onLock }: Props
         {tab === 'escalation' && <EscalationTab manuscript={manuscript} analysis={analysis} />}
         {tab === 'repetition' && <RepetitionTab manuscript={manuscript} analysis={analysis} chapterMap={chapterMap} />}
         {tab === 'abstraction' && <AbstractionTab manuscript={manuscript} analysis={analysis} />}
-        {tab === 'suggestions' && <SuggestionsTab payload={payload} analysis={analysis} />}
+        {tab === 'suggestions' && <SuggestionsTab payload={payload} analysis={analysis} projectName={projectName} />}
       </main>
     </div>
   );
@@ -425,7 +427,7 @@ function RepetitionContext({
   chapterMap: Map<string, Chapter>;
 }) {
   const tokens = phrase.split(' ');
-  const matches: { chapter: Chapter; snippet: string }[] = [];
+  const matches: { chapter: Chapter; before: string; hit: string; after: string; leftEllipsis: boolean; rightEllipsis: boolean }[] = [];
   for (const ch of manuscript.chapters) {
     const text = ch.text;
     const re = new RegExp(`(\\b${tokens.map(escapeRe).join('\\W+')}\\b)`, 'ig');
@@ -434,12 +436,13 @@ function RepetitionContext({
     while ((m = re.exec(text)) && count < 3) {
       const start = Math.max(0, m.index - 60);
       const end = Math.min(text.length, m.index + m[0].length + 60);
-      const before = text.slice(start, m.index);
-      const hit = m[0];
-      const after = text.slice(m.index + hit.length, end);
       matches.push({
         chapter: ch,
-        snippet: `${start > 0 ? '…' : ''}${before}<mark>${hit}</mark>${after}${end < text.length ? '…' : ''}`,
+        before: text.slice(start, m.index),
+        hit: m[0],
+        after: text.slice(m.index + m[0].length, end),
+        leftEllipsis: start > 0,
+        rightEllipsis: end < text.length,
       });
       count++;
     }
@@ -450,10 +453,13 @@ function RepetitionContext({
       {matches.slice(0, 12).map((m, i) => (
         <div key={i} className="text-sm">
           <div className="text-[11px] uppercase tracking-wide text-ink-400">{chapterLabel(m.chapter)}</div>
-          <p
-            className="prose-manuscript text-[14px]"
-            dangerouslySetInnerHTML={{ __html: m.snippet }}
-          />
+          <p className="prose-manuscript text-[14px]">
+            {m.leftEllipsis && '…'}
+            {m.before}
+            <mark>{m.hit}</mark>
+            {m.after}
+            {m.rightEllipsis && '…'}
+          </p>
         </div>
       ))}
     </div>
@@ -555,9 +561,25 @@ function AbstractionTab({ manuscript, analysis }: { manuscript: Manuscript; anal
 }
 
 // ─── Suggestions tab ─────────────────────────────────────────────────────────
-function SuggestionsTab({ payload, analysis }: { payload: ProjectPayload; analysis: AnalysisResults }) {
+function SuggestionsTab({ payload, analysis, projectName }: { payload: ProjectPayload; analysis: AnalysisResults; projectName: string }) {
   const [filter, setFilter] = useState<'all' | 'echo' | 'abstract-heavy' | 'low-tension'>('all');
   const [open, setOpen] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportSuggestionsPDF(payload, projectName);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectName.replace(/[^\w-]+/g, '_')}_revision_report.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const filtered = analysis.suggestions.filter((s) => filter === 'all' || s.reason === filter);
 
@@ -579,27 +601,38 @@ function SuggestionsTab({ payload, analysis }: { payload: ProjectPayload; analys
   return (
     <div className="grid gap-6">
       <div className="paper rounded-2xl border border-ink-100 p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
           <div>
             <h3 className="serif text-lg text-ink-900">Paragraph-level alternatives</h3>
             <p className="text-sm text-ink-500">
               {filtered.length} suggestions · ranked by signal strength.
             </p>
           </div>
-          <div className="flex gap-1 text-xs">
-            {(['all', 'echo', 'abstract-heavy', 'low-tension'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-full border ${
-                  filter === f
-                    ? 'bg-ink-900 text-ink-50 border-ink-900'
-                    : 'border-ink-200 text-ink-600 hover:bg-ink-100'
-                }`}
-              >
-                {labelFor(f)} <span className="opacity-60 ml-1">{counts[f]}</span>
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 text-xs">
+              {(['all', 'echo', 'abstract-heavy', 'low-tension'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-3 py-1.5 rounded-full border ${
+                    filter === f
+                      ? 'bg-ink-900 text-ink-50 border-ink-900'
+                      : 'border-ink-200 text-ink-600 hover:bg-ink-100'
+                  }`}
+                >
+                  {labelFor(f)} <span className="opacity-60 ml-1">{counts[f]}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleExportPDF}
+              disabled={exporting || analysis.suggestions.length === 0}
+              className="flex items-center gap-1.5 text-xs rounded-lg bg-ink-900 text-ink-50 px-3 py-1.5 hover:bg-accent disabled:opacity-50"
+              title="Export all suggestions as a PDF revision report"
+            >
+              <FileText size={12} />
+              {exporting ? 'Building PDF…' : 'Export PDF'}
+            </button>
           </div>
         </div>
 
