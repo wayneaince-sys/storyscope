@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: #f7f5f0;
+  color: #15120e;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+.serif {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-feature-settings: "onum";
+}
+
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Subtle paper texture */
+.paper {
+  background-color: #fdfbf6;
+  background-image:
+    radial-gradient(rgba(120, 100, 70, 0.04) 1px, transparent 1px),
+    radial-gradient(rgba(120, 100, 70, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px, 13px 13px;
+  background-position: 0 0, 6px 6px;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(63, 55, 42, 0.18); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(63, 55, 42, 0.32); }
+
+/* Manuscript text rendering */
+.prose-manuscript {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 16px;
+  line-height: 1.75;
+  color: #26211a;
+}
+.prose-manuscript p { margin-bottom: 1em; }
+.prose-manuscript mark {
+  background: rgba(251, 146, 60, 0.25);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* Heatmap cell */
+.heatmap-cell {
+  transition: transform 80ms ease;
+}
+.heatmap-cell:hover {
+  transform: scale(1.04);
+  outline: 2px solid #15120e;
+  outline-offset: -2px;
+}
+
+/* Dropzone */
+.dropzone {
+  border: 1.5px dashed rgba(63, 55, 42, 0.3);
+  transition: all 200ms ease;
+}
+.dropzone.is-dragging {
+  border-color: #c2410c;
+  background-color: rgba(251, 146, 60, 0.06);
+}
+
+/* Skeleton */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, rgba(63,55,42,0.06) 0%, rgba(63,55,42,0.12) 50%, rgba(63,55,42,0.06) 100%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Focus rings */
+*:focus-visible {
+  outline: 2px solid #c2410c;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button, [role="button"] {
+  cursor: pointer;
+}
